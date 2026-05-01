@@ -50,7 +50,7 @@ def train_ensemble_scm(D_data, M=10):
     return ensemble_models, noise_variances
 
 # ==========================================
-# Phase II: Structure-Aware Optimization (Matches Algorithm 1)
+# Phase II: Structure-Aware Adversarial Optimization
 # ==========================================
 def generate_lcsa_attack(x, y, model, ensemble, budget_Lp, budget_gamma):
     nu = init_zeros()      # \nu^{(0)}
@@ -58,44 +58,43 @@ def generate_lcsa_attack(x, y, model, ensemble, budget_Lp, budget_gamma):
     x_adv = None
     
     for t in range(T_total):
-        # Recursive propagation & projection
+        # 1. Forward pass for current state \nu^{(t)}
         delta_t = project_onto_Omega(ripple_mechanism(nu, ensemble), budget_Lp)
         x_tilde = x + delta_t
         
-        # Soft-Embedding Relaxation: required for differentiable gradient flow
+        # Soft-Embedding: differentiable input for the target model
         z_tilde = apply_soft_embedding(x_tilde, model.embeddings)
         
+        # 2. Compute Gradients and Update \nu
         if t < T_warm:
-            # Warm Start (Pure classification loss)
+            # Stage 1: Warm Start
             grad = compute_gradient(classification_loss(model(z_tilde), y), nu)
             nu_next = nu + lr_eta * grad
         else:
-            # Constraint violation (\psi^{(t)})
+            # Stage 2: Augmented Lagrangian
             psi_t = calc_scm_loss(x_tilde, ensemble) - calc_scm_loss(x, ensemble) - budget_gamma
             
-            # Dual-Ascent Update
             aug_loss = classification_loss(model(z_tilde), y) \
                        - lambda_param * psi_t \
                        - (rho / 2) * max(0, psi_t)**2
                        
             grad = compute_gradient(aug_loss, nu)
-            nu_next = nu + lr_eta * grad  # \nu^{(t+1)}
+            nu_next = nu + lr_eta * grad
             
-            # Update Multiplier using \psi^{(t+1)} based on \nu^{(t+1)}
-            delta_next = project_onto_Omega(ripple_mechanism(nu_next, ensemble), budget_Lp)
-            x_tilde_next = x + delta_next
-            psi_next = calc_scm_loss(x_tilde_next, ensemble) - calc_scm_loss(x, ensemble) - budget_gamma
-            
-            lambda_param = max(0, lambda_param + rho * psi_next)
-            
-        nu = nu_next # Apply update for next iteration
+        # 3. Apply state update: \nu^{(t)} -> \nu^{(t+1)}
+        nu = nu_next
         
-        # Project categorical vars to vertices using the updated \nu^{(t+1)} state
+        # 4. Evaluate the NEW state \nu^{(t+1)} (Computed ONLY ONCE)
         delta_next = project_onto_Omega(ripple_mechanism(nu, ensemble), budget_Lp)
         x_tilde_next = x + delta_next
-        x_bar = discretize_categorical(x_tilde_next)
         
-        # Verification
+        # 5. Update Multiplier (only after warm-up phase)
+        if t >= T_warm:
+            psi_next = calc_scm_loss(x_tilde_next, ensemble) - calc_scm_loss(x, ensemble) - budget_gamma
+            lambda_param = max(0, lambda_param + rho * psi_next)
+            
+        # 6. Verification
+        x_bar = discretize_categorical(x_tilde_next)
         if model(x_bar) != y and (calc_scm_loss(x_bar, ensemble) - calc_scm_loss(x, ensemble) <= budget_gamma):
             x_adv = x_bar
             
