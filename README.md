@@ -1,7 +1,7 @@
 # Ripple Perturbations Through Structure: Likelihood-Constrained Adversarial Attacks on Heterogeneous Tabular Data
 
 [![Conference](https://img.shields.io/badge/ICML-2026-blue.svg)](https://icml.cc/)
-[![Paper](https://img.shields.io/badge/Paper-PDF-red.svg)](#)
+[![Paper](https://img.shields.io/badge/Paper-PDF-red.svg)](https://icml.cc/virtual/2026/poster/60737)
 
 This repository serves as the official reproducibility hub for the ICML 2026 paper: **"Ripple Perturbations Through Structure: Likelihood-Constrained Adversarial Attacks on Heterogeneous Tabular Data"**. 
 
